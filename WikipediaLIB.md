@@ -225,9 +225,9 @@ hist(posabsL, main="Logit of Positive adjective ratio")
 
 Logit models for the ratios:
 
-$$logit(r_+) = a_+ + b_+*\delta_F $$
+$logit(r_+) = a_+ + b_+*\delta_F $
 
-$$logit(r_-) = a_- + b_-*\delta_F$$ 
+$logit(r_-) = a_- + b_-*\delta_F$ 
 
 (we expect $b_+<0$ and $b_- >0$)
 
