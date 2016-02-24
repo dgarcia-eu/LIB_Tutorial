@@ -1,0 +1,284 @@
+---
+title: "Linguistic Intergroup Bias in Wikipedia"
+author: "David Garcia"
+date: "February 25, 2016"
+output:
+  html_document:
+    highlight: pygments
+    keep_md: true
+---
+
+## Composing the Wikipedia Abstracts dataset
+
+1. Abstracts and genders from Wikipedia.
+Women Through the Glass Ceiling: Gender Asymmetries in Wikipedia. Claudia Wagner, Eduardo Graells-Garrido, David Garcia
+
+https://github.com/clauwag/WikipediaGenderInequality/blob/master/data/person_text_1.csv.gz
+
+```{r, engine='python', cache=TRUE, eval=FALSE}
+import urllib
+urllib.urlretrieve ("https://github.com/clauwag/WikipediaGenderInequality/blob/master/data/person_text_1.csv.gz?raw=true", "person_text_1.csv.gz")
+urllib.urlretrieve ("https://github.com/clauwag/WikipediaGenderInequality/blob/master/data/person_text_2.csv.gz?raw=true", "person_text_2.csv.gz")
+urllib.urlretrieve ("https://github.com/clauwag/WikipediaGenderInequality/blob/master/data/person_text_3.csv.gz?raw=true", "person_text_3.csv.gz")
+urllib.urlretrieve ("https://github.com/clauwag/WikipediaGenderInequality/blob/master/data/person_text_4.csv.gz?raw=true", "person_text_4.csv.gz")
+```
+
+2. MPQA subjectivity lexicon
+Theresa Wilson, Janyce Wiebe, and Paul Hoffmann (2005). Recognizing Contextual Polarity in Phrase-Level Sentiment Analysis. Proc. of HLT-EMNLP-2005. 
+Distributed under GPL: http://www.gnu.org/licenses/gpl.html
+http://mpqa.cs.pitt.edu/lexicons/subj_lexicon/
+
+```{r, engine='python', cache=TRUE, eval=FALSE}
+import zipfile
+import urllib
+#urllib.urlretrieve ("http://mpqa.cs.pitt.edu/data/subjectivity_clues_hltemnlp05.zip", "subjectivity_clues_hltemnlp05.zip")
+with zipfile.ZipFile("subjectivity_clues_hltemnlp05.zip", "r") as z:
+    z.extractall("subjectivity_clues")
+```
+                    
+                    
+```{r, engine='python', cache=TRUE, eval=FALSE}
+import csv
+import gzip
+import nltk
+from nltk.tag import pos_tag, map_tag
+
+#load subjectivity dictionary
+fin = open("subjectivity_clues/subjectivity_clues_hltemnlp05/subjclueslen1-HLTEMNLP05.tff","rt")
+subjdic = dict()
+for line in fin:
+  fields = line.split(" ")
+  contdic = dict()
+  for field in fields:
+    parts = field.split("=")
+    if len(parts) == 2:
+      contdic[parts[0]] = parts[1]
+  w = contdic["word1"]
+  subjdic[w] = contdic["type"], contdic["pos1"], contdic["priorpolarity"].replace("\n", "")
+fin.close()
+
+fout = open("textData.dat", "w")
+fout.write("class" + "\t" + "year" + "\t"+ "gender" + "\t" + "nwords" + "\t" + "nadj" + "\t" + "npos" + "\t" + "nposadj" + "\t" + "nneg" + "\t" + "nnegadj" + "\n") 
+
+for i in range(1,5):
+  with gzip.open("person_text_"+str(i)+".csv.gz") as f:
+    csvreader = csv.reader(f, delimiter=',', quotechar='"')
+    for fields in csvreader:
+      gender = fields[3]
+      if fields[3] != "gender":
+        jobclass = fields[2].replace("http://dbpedia.org/ontology/", "")
+        year = fields[7]
+        text = fields[12].decode("utf8").replace("\n", "").replace('"', '')
+
+        texttokens = nltk.word_tokenize(text) #Tokenize into words
+        posTagged = pos_tag(texttokens)
+        simplifiedTags = [(word, map_tag('en-ptb', 'universal', tag)) for word, tag in posTagged] #Parts-Of-Speech tagging to detect adjectives
+        nadj = nwords =  0
+        npos = nneg = 0
+        nposadj = nnegadj = 0
+
+        for tag in simplifiedTags :
+          if tag[1] != ".":
+            nwords +=1
+            word = tag[0].lower()
+            
+            sv = subjdic.get(word, -1)
+            polarity = ""
+            if sv != -1:
+              polarity = sv[2]
+            
+            if tag[1] == "ADJ":
+              nadj +=1
+            if polarity == "positive":
+              npos +=1
+              if tag[1] == "ADJ":
+                nposadj +=1
+            if polarity == "negative":
+              nneg +=1
+              if tag[1] == "ADJ":
+                nnegadj +=1
+            if polarity == "both":
+              npos +=1
+              nneg +=1
+              if tag[1] == "ADJ":
+                nposadj +=1
+                nnegadj +=1
+
+        fout.write(jobclass  + "\t" + year  + "\t" +  gender + "\t" + str(nwords) + "\t" + str(nadj) + "\t" + str(npos) + "\t" + str(nposadj) + "\t" + str(nneg) + "\t" + str(nnegadj) + "\n") 
+
+```
+
+
+# Chi-squared tests of general proportions
+
+```{r Stats, cache=TRUE, warning=FALSE}
+library(xtable)
+library(texreg)
+df <- read.table("textData.dat", sep="\t", header=TRUE)
+attach(df)
+
+prop.test( c(sum(nposadj[gender=="male"]),sum(nposadj[gender=="female"])), c(sum(npos[gender=="male"]), sum(npos[gender=="female"])), alternative="greater")
+
+# Effect size calculation
+p0 <- sum(nposadj)/sum(npos)
+p1 <- sum(nposadj[gender=="male"])/sum(npos[gender=="male"])
+p2 <- sum(nposadj[gender=="female"])/sum(npos[gender=="female"])
+print(paste("Cohen's W:", sqrt(((p0-p1)^2 + (p0-p2)^2)/p0)))
+print(paste("% Change:", (p1-p2)/p1 * 100))
+
+prop.test( c(sum(nnegadj[gender=="male"]),sum(nnegadj[gender=="female"])), c(sum(nneg[gender=="male"]), sum(nneg[gender=="female"])), alternative="less")
+
+# Effect size calculation
+p0 <- sum(nnegadj)/sum(nneg)
+p1 <- sum(nnegadj[gender=="male"])/sum(nneg[gender=="male"])
+p2 <- sum(nnegadj[gender=="female"])/sum(nneg[gender=="female"])
+print(paste("Cohen's W:", sqrt(((p0-p1)^2 + (p0-p2)^2)/p0)))
+print(paste("% Change:", (p1-p2)/p1 * 100))
+
+```
+
+
+# Does abstraction depend on the gender of the biography?
+
+```{r, cache=TRUE, warning=FALSE, results='asis', fig.height=4, cache=TRUE}
+library(xtable)
+library(texreg)
+df <- read.table("textData.dat", sep="\t", header=TRUE)
+attach(df)
+minW <- 50
+f <- npos>0 & !is.na(year) & nwords >=minW & nposadj != npos & nposadj >0
+posabs <- (nposadj/npos)[f]
+posabsL <- log(posabs/(1-posabs))
+
+par(mfrow=c(1,2))
+hist(posabs, main="Positive adjective ratio")
+hist(posabsL, main="Logit of Positive adjective ratio")
+```
+
+Logit models for the ratios:
+
+$logit(r_+) = a_+ + b_+*\delta_F$ 
+
+$logit(r_-) = a_- + b_-*\delta_F$ 
+
+(we expect $b_+<0$ and $b_- >0$)
+
+
+```{r Stats2, cache=TRUE, warning=FALSE, results='asis'}
+G <- rep(0,sum(f))
+G[gender[f] == "female"] <- 1
+linModel <- glm(posabsL~G)
+
+htmlreg(list(linModel), digits=4, single.row=TRUE, bold=0.05)
+
+```
+
+
+```{r, cache=TRUE, warning=FALSE, results='asis', fig.height=4}
+
+f <- nneg>0 & !is.na(year) & nwords >=minW & nnegadj != nneg & nnegadj >0
+negabs <- (nnegadj/nneg)[f]
+negabsL <- log(negabs/(1-negabs))
+
+par(mfrow=c(1,2))
+hist(negabs, main="Negative adjective ratio")
+hist(negabsL, main="Logit of Negative adjective ratio")
+```
+
+
+```{r , cache=TRUE, warning=FALSE, results='asis'}
+G <- rep(0,sum(f))
+G[gender[f] == "female"] <- 1
+linModel <- glm(negabsL~G)
+
+htmlreg(list(linModel), digits=4, single.row=TRUE, bold=0.05)
+
+```
+
+
+
+# Do these effects depend on the year when the person was born?
+
+```{r , cache=TRUE, warning=FALSE}
+df <- read.table("textData.dat", sep="\t", header=TRUE)
+attach(df)
+f <- npos>0 & !is.na(year) & nwords >=minW & nposadj != npos & nposadj >0
+posabsL <- log(posabs/(1-posabs))
+y <- year[f]
+cor.test(posabsL, y)
+G <- rep(0,sum(f))
+G[gender[f] == "female"] <- 1
+posdf <- data.frame(y=y, G=G, posabsL=posabsL)
+yearModelPos <- glm(posabsL~G*y, data=posdf)
+```
+
+```{r , cache=TRUE, warning=FALSE}
+f <- nneg>0 & !is.na(year) & nwords >=minW & nnegadj != nneg & nnegadj >0
+negabsL <- log(negabs/(1-negabs))
+y <- year[f]
+G <- rep(0,sum(f))
+G[gender[f] == "female"] <- 1
+cor.test(negabsL, y)
+negdf <- data.frame(y=y, G=G, negabsL=negabsL)
+yearModelNeg <- glm(negabsL~G*y, data=negdf)
+```
+
+```{r , cache=TRUE, warning=FALSE, results='asis'}
+htmlreg(list(yearModelPos, yearModelNeg), digits=4, single.row=TRUE, bold=0.05)
+```
+
+We visualize the interactions in the model
+
+```{r , cache=TRUE, warning=FALSE, results='asis', eval=TRUE}
+ys <- seq(min(posdf$y), max(posdf$y))
+
+predsMale0 <- predict(yearModelNeg, newdata= data.frame(y=ys, G=rep(0,length(ys))), se.fit=TRUE)
+#Preditions for male biographies in Negative model
+predsMale <- exp(predsMale0$fit)/(exp(predsMale0$fit)+1)
+predsMaleLow <- exp(predsMale0$fit-predsMale0$se.fit)/(exp(predsMale0$fit-predsMale0$se.fit)+1) 
+predsMaleHigh <- exp(predsMale0$fit+predsMale0$se.fit)/(exp(predsMale0$fit+predsMale0$se.fit)+1) 
+
+predsFemale0 <- predict(yearModelNeg, newdata= data.frame(y=ys, G=rep(1,length(ys))), se.fit=TRUE)
+#Preditions for female biographies in Negative model
+predsFemale <- exp(predsFemale0$fit)/(exp(predsFemale0$fit)+1)
+predsFemaleLow <- exp(predsFemale0$fit-predsFemale0$se.fit)/(exp(predsFemale0$fit-predsFemale0$se.fit)+1) 
+predsFemaleHigh <- exp(predsFemale0$fit+predsFemale0$se.fit)/(exp(predsFemale0$fit+predsFemale0$se.fit)+1) 
+
+plot(ys, predsMale, col="red", type="l", ylim=range(c(predsMaleHigh, predsMaleLow, predsFemaleHigh, predsFemaleLow)), xlab="Birth year", ylab="Predicted r-")
+lines(ys, predsMaleLow, col="red", lty=2)
+lines(ys, predsMaleHigh, col="red", lty=2)
+lines(ys, predsFemale, col="blue")
+lines(ys, predsFemaleLow, col="blue", lty=2)
+lines(ys, predsFemaleHigh, col="blue", lty=2)
+legend(c("Male", "Female"), x="topright", col=c("red", "blue"), lwd=c(1,1)) 
+```
+
+
+```{r , cache=TRUE, warning=FALSE, results='asis', eval=TRUE}
+
+predsMale0 <- predict(yearModelPos, newdata= data.frame(y=ys, G=rep(0,length(ys))), se.fit=TRUE)
+#Preditions for male biographies in Positive model
+predsMale <- exp(predsMale0$fit)/(exp(predsMale0$fit)+1)
+predsMaleLow <- exp(predsMale0$fit-predsMale0$se.fit)/(exp(predsMale0$fit-predsMale0$se.fit)+1) 
+predsMaleHigh <- exp(predsMale0$fit+predsMale0$se.fit)/(exp(predsMale0$fit+predsMale0$se.fit)+1) 
+
+predsFemale0 <- predict(yearModelPos, newdata= data.frame(y=ys, G=rep(1,length(ys))), se.fit=TRUE)
+#Preditions for female biographies in Positive model
+predsFemale <- exp(predsFemale0$fit)/(exp(predsFemale0$fit)+1)
+predsFemaleLow <- exp(predsFemale0$fit-predsFemale0$se.fit)/(exp(predsFemale0$fit-predsFemale0$se.fit)+1) 
+predsFemaleHigh <- exp(predsFemale0$fit+predsFemale0$se.fit)/(exp(predsFemale0$fit+predsFemale0$se.fit)+1) 
+
+plot(ys, predsMale, col="red", type="l", ylim=range(c(predsMaleHigh, predsMaleLow, predsFemaleHigh, predsFemaleLow)), xlab="Birth year", ylab="Predicted r+")
+lines(ys, predsMaleLow, col="red", lty=2)
+lines(ys, predsMaleHigh, col="red", lty=2)
+lines(ys, predsFemale, col="blue")
+lines(ys, predsFemaleLow, col="blue", lty=2)
+lines(ys, predsFemaleHigh, col="blue", lty=2)
+legend(c("Male", "Female"), x="topright", col=c("red", "blue"), lwd=c(1,1)) 
+```
+
+```{r , cache=TRUE, warning=FALSE, results='asis', eval=TRUE}
+hist(posdf$y, main="Biographies per birth year", xlab="Birth Year")
+```
+
+
