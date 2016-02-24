@@ -225,9 +225,9 @@ hist(posabsL, main="Logit of Positive adjective ratio")
 
 Logit models for the ratios:
 
-$logit(r_+) = a_+ + b_+*\delta_F$ 
+$$logit(r_+) = a_+ + b_+*\delta_F $$
 
-$logit(r_-) = a_- + b_-*\delta_F$ 
+$$logit(r_-) = a_- + b_-*\delta_F$$ 
 
 (we expect $b_+<0$ and $b_- >0$)
 
@@ -242,7 +242,6 @@ htmlreg(list(linModel), digits=4, single.row=TRUE, bold=0.05)
 ```
 
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <table cellspacing="0" align="center" style="border: none;">
 <caption align="bottom" style="margin-top:0.3em;">Statistical models</caption>
 <tr>
@@ -307,7 +306,6 @@ htmlreg(list(linModel), digits=4, single.row=TRUE, bold=0.05)
 ```
 
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <table cellspacing="0" align="center" style="border: none;">
 <caption align="bottom" style="margin-top:0.3em;">Statistical models</caption>
 <tr>
@@ -434,7 +432,6 @@ htmlreg(list(yearModelPos, yearModelNeg), digits=4, single.row=TRUE, bold=0.05)
 ```
 
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <table cellspacing="0" align="center" style="border: none;">
 <caption align="bottom" style="margin-top:0.3em;">Statistical models</caption>
 <tr>
